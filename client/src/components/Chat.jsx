@@ -1,10 +1,10 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useChatStore from "../hooks/useChatStore";
 
 // Username form component
 function UsernameForm() {
   const { username, setUsername } = useChatStore();
-  const [tempUsername, setTempUsername] = React.useState(username);
+  const [tempUsername, setTempUsername] = useState(username);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -28,12 +28,13 @@ function UsernameForm() {
 
 // Message list component
 function MessageList() {
-  const { messages, username } = useChatStore();
-  const messageEndRef = React.useRef(null);
+  const { messages, username, typingUser, deleteMessage, editMessage } =
+    useChatStore();
+  const messageEndRef = useRef(null);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, typingUser]);
 
   return (
     <div className="message-list">
@@ -48,10 +49,51 @@ function MessageList() {
           }
         >
           <div className="message-bubble">
-            <strong>{msg.username || "Anonymous"}:</strong> {msg.text}
+            <div className="message-content">
+              <div>
+                <strong>{msg.username || "Anonymous"}:</strong> {msg.text}
+              </div>
+              {msg.username === username && (
+                <div>
+                  <button
+                    className="delete-button"
+                    onClick={() => deleteMessage(msg.id)}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    className="edit-button"
+                    onClick={() => editMessage(msg)}
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
+            </div>
+            <span
+              className="message-date"
+              style={
+                msg.username === username
+                  ? { textAlign: "right" }
+                  : { textAlign: "left" }
+              }
+            >
+              {new Date(msg.date).toLocaleTimeString()}
+            </span>
+            {msg.isEdited ? <span className="message-date">Edited</span> : ""}
           </div>
         </div>
       ))}
+      {/* Typing indicator */}
+      <div className="message typing-indicator">
+        {typingUser &&
+          typingUser.typing &&
+          typingUser.username !== username && (
+            <div className="message-bubble">
+              {typingUser.username} is typing...
+            </div>
+          )}
+      </div>
       <div ref={messageEndRef} />
     </div>
   );
@@ -59,12 +101,29 @@ function MessageList() {
 
 // Message input component
 function MessageInput() {
-  const { currentMessage, setCurrentMessage, sendMessage, isConnected } =
-    useChatStore();
+  const {
+    currentMessage,
+    setCurrentMessage,
+    sendMessage,
+    isConnected,
+    setTypingUser,
+  } = useChatStore();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     sendMessage();
+  };
+
+  const handleChange = (e) => {
+    setCurrentMessage(e.target.value);
+  };
+
+  const handleBlur = () => {
+    setTypingUser(false);
+  };
+
+  const handleFocus = () => {
+    setTypingUser(true);
   };
 
   return (
@@ -72,8 +131,12 @@ function MessageInput() {
       <input
         type="text"
         value={currentMessage}
-        onChange={(e) => setCurrentMessage(e.target.value)}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onFocus={handleFocus}
         placeholder="Type a message"
+        autoFocus={true}
+        autoComplete="off"
         disabled={!isConnected}
       />
       <button type="submit" disabled={!isConnected}>
@@ -85,11 +148,27 @@ function MessageInput() {
 
 // Connection status indicator
 function ConnectionStatus() {
-  const isConnected = useChatStore((state) => state.isConnected);
+  const { isConnected } = useChatStore();
 
   return (
     <div className={`status ${isConnected ? "online" : "offline"}`}>
       {isConnected ? "Connected" : "Disconnected"}
+    </div>
+  );
+}
+
+// Online status component
+function OnlineStatus() {
+  const { onlineUsers } = useChatStore();
+
+  return (
+    <div className="online-status">
+      <h2>Online Users</h2>
+      <ul>
+        {onlineUsers?.map((user, index) => (
+          <li key={index}>{user}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -108,8 +187,11 @@ function ChatApp() {
 
   return (
     <div className="chat-app">
-      <h1>Real-time Chat</h1>
+      <div className="chat-header">
+        <h1 className="typed-out">Real-time Chat</h1>
+      </div>
       <ConnectionStatus />
+      <OnlineStatus />
       <UsernameForm />
       <MessageList />
       <MessageInput />
